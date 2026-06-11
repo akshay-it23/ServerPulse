@@ -4,14 +4,15 @@ import helmet from 'helmet';
 import morgan from 'morgan';
 import dotenv from 'dotenv';
 import { logger } from './utils/logger.js';
+import { disconnectDB } from './config/db.js';
 
 // Load environment variables
 dotenv.config();
 
 // Task 27: Implement uncaught exception handler
-process.on('uncaughtException', (error) => {
+process.on('uncaughtException', async (error) => {
   logger.error('Uncaught Exception thrown:', error);
-  // Graceful shutdown recommended in production
+  await disconnectDB();
   process.exit(1);
 });
 
@@ -50,11 +51,25 @@ const server = app.listen(PORT, () => {
   logger.info(`Server is running on port ${PORT} in ${process.env.NODE_ENV} mode`);
 });
 
+// Graceful shutdown helper
+const gracefulShutdown = async (signal: string) => {
+  logger.info(`Received ${signal}. Shutting down gracefully...`);
+  server.close(async () => {
+    await disconnectDB();
+    logger.info('HTTP server closed');
+    process.exit(0);
+  });
+};
+
+process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
+process.on('SIGINT', () => gracefulShutdown('SIGINT'));
+
 // Task 28: Implement unhandled promise rejection handler
 process.on('unhandledRejection', (reason, promise) => {
   logger.error('Unhandled Rejection at:', promise, 'reason:', reason);
-  // Recommended to shut down gracefully
-  server.close(() => {
+  server.close(async () => {
+    await disconnectDB();
     process.exit(1);
   });
 });
+

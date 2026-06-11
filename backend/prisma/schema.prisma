@@ -1,0 +1,72 @@
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+model User {
+  id           String   @id @default(uuid())
+  email        String   @unique
+  passwordHash String
+  role         String   @default("ADMIN")
+  createdAt    DateTime @default(now())
+}
+
+model Monitor {
+  id             String        @id @default(uuid())
+  name           String
+  type           String        // e.g. "HTTP", "PING", "TCP"
+  target         String
+  interval       Int           @default(60) // in seconds
+  status         String        @default("UP") // "UP", "DOWN", "PAUSED"
+  isActive       Boolean       @default(true)
+  lastChecked    DateTime?
+  averageLatency Float         @default(0)
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+  
+  logs           UptimeLog[]
+  incidents      Incident[]
+  alertConfigs   AlertConfig[]
+}
+
+model UptimeLog {
+  id           String   @id @default(uuid())
+  monitorId    String
+  status       Boolean  // true = UP, false = DOWN
+  responseTime Float    // in milliseconds
+  statusCode   Int?
+  errorMsg     String?
+  timestamp    DateTime @default(now())
+
+  monitor      Monitor  @relation(fields: [monitorId], references: [id], onDelete: Cascade)
+
+  @@index([timestamp, monitorId]) // Task 54 index
+}
+
+model Incident {
+  id          String    @id @default(uuid())
+  monitorId   String
+  title       String
+  description String
+  status      String    @default("OPEN") // "OPEN", "RESOLVED"
+  resolvedAt  DateTime?
+  createdAt   DateTime  @default(now())
+
+  monitor     Monitor   @relation(fields: [monitorId], references: [id], onDelete: Cascade)
+
+  @@index([status, monitorId]) // Task 55 index
+}
+
+model AlertConfig {
+  id          String   @id @default(uuid())
+  monitorId   String
+  type        String   // e.g. "EMAIL", "WEBHOOK", "DISCORD", "TELEGRAM"
+  destination String
+  isActive    Boolean  @default(true)
+
+  monitor     Monitor  @relation(fields: [monitorId], references: [id], onDelete: Cascade)
+}
